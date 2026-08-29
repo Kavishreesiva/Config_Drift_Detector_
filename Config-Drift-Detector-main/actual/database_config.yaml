@@ -1,0 +1,6 @@
+database:
+  url: postgresql://admin:different_password@db-host:5432/db_prod
+  max_connections: 100
+  pool_timeout: 45
+metadata:
+  description: "Updated database connection setup"

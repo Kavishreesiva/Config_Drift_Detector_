@@ -1,0 +1,9 @@
+fastapi
+uvicorn
+deepdiff
+pyyaml
+google-generativeai
+reportlab
+python-multipart
+tzdata
+

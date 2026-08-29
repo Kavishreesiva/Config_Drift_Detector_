@@ -1,0 +1,19 @@
+# Compromised Live Configuration (Malicious Drifts Detected)
+server:
+  host: "0.0.0.0"          # Exposed to public internet!
+  port: 6667               # Backdoor IRC port!
+  ssl_enabled: false       # TLS Disabled! (CRITICAL SECURITY DRIFT)
+  tls_version: "1.0"       # Insecure deprecated protocol
+  debug_mode: true         # Debug mode enabled in production!
+
+security:
+  allow_anonymous: true    # Anonymous access granted!
+  firewall_enabled: false   # Firewall disabled!
+  jwt_secret: "hacked123"  # Secret key compromised!
+  failed_login_limit: 9999
+  backdoor_user: "attacker_admin"  # Malicious user added!
+
+database:
+  host: "external-hacker-server.xyz"  # Database hijacked to attacker server!
+  port: 5432
+  require_ssl: false

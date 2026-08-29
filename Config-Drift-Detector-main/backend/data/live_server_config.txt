@@ -1,0 +1,8 @@
+hostname Core-Router-01
+interface GigabitEthernet0/1
+ description Primary WAN Interface
+ ip address 10.0.1.1 255.255.255.0
+ shutdown
+!
+ip access-list extended SEC_ACL
+ permit ip any any

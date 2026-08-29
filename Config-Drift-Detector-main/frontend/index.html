@@ -1,0 +1,673 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Config Drift Detector</title>
+    <!-- Google Fonts - Outfit -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&family=Fira+Code:wght@400;500&display=swap" rel="stylesheet">
+    <!-- Lucide Icons -->
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <!-- Chart.js -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <!-- Custom CSS -->
+    <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+    <div class="app-container">
+        <!-- Sidebar Navigation -->
+        <aside class="sidebar">
+            <div class="logo-area">
+                <div class="logo-icon">
+                    <i data-lucide="shield-alert"></i>
+                </div>
+                <span class="logo-text">Drift<span>Detector</span></span>
+            </div>
+            
+            <nav class="nav-links">
+                <button class="nav-btn active" data-target="dashboard-view">
+                    <i data-lucide="layout-dashboard"></i>
+                    <span>Dashboard</span>
+                </button>
+                <button class="nav-btn" data-target="analysis-view">
+                    <i data-lucide="git-compare"></i>
+                    <span>Drift Analysis</span>
+                </button>
+                <button class="nav-btn" data-target="reports-view">
+                    <i data-lucide="file-text"></i>
+                    <span>Saved Reports</span>
+                </button>
+                <button class="nav-btn" data-target="settings-view">
+                    <i data-lucide="settings"></i>
+                    <span>Settings</span>
+                </button>
+            </nav>
+            
+            <div class="sidebar-footer">
+                <div class="api-status" id="api-status-badge">
+                    <span class="status-indicator offline"></span>
+                    <span class="status-label">Gemini: Offline Fallback</span>
+                </div>
+            </div>
+        </aside>
+
+        <!-- Main Content Area -->
+        <main class="main-content">
+            <!-- Header -->
+            <header class="app-header">
+                <div class="header-title-wrapper">
+                    <h1 id="page-title">Dashboard</h1>
+                    <p class="subtitle" id="page-subtitle">Overview of system configuration integrity</p>
+                </div>
+                <div class="header-actions">
+                    <button class="btn btn-primary" onclick="switchView('analysis-view')">
+                        <i data-lucide="plus"></i> New Analysis
+                    </button>
+                </div>
+            </header>
+
+            <!-- Views Container -->
+            <div class="views-container">
+                
+                <!-- 1. DASHBOARD VIEW -->
+                <section id="dashboard-view" class="view-section active">
+                    <!-- Stats Cards Grid -->
+                    <div class="stats-grid">
+                        <div class="stat-card">
+                            <div class="stat-header">
+                                <span class="stat-title">Total Analyzed</span>
+                                <div class="stat-icon bg-blue"><i data-lucide="files"></i></div>
+                            </div>
+                            <div class="stat-value" id="stat-total-analyzed">0</div>
+                            <div class="stat-desc">Configuration pairs run</div>
+                        </div>
+                        
+                        <div class="stat-card">
+                            <div class="stat-header">
+                                <span class="stat-title">Total Drifts</span>
+                                <div class="stat-icon bg-purple"><i data-lucide="git-commit"></i></div>
+                            </div>
+                            <div class="stat-value text-glow-purple" id="stat-total-drifts">0</div>
+                            <div class="stat-desc">Discrepancies identified</div>
+                        </div>
+
+                        <div class="stat-card">
+                            <div class="stat-header">
+                                <span class="stat-title">Risk Breakdown</span>
+                                <div class="stat-icon bg-red"><i data-lucide="alert-triangle"></i></div>
+                            </div>
+                            <div class="stat-breakdown">
+                                <div class="breakdown-item text-red">
+                                    <span class="dot bg-red"></span> Breaking: <strong id="stat-breaking-count">0</strong>
+                                </div>
+                                <div class="breakdown-item text-orange">
+                                    <span class="dot bg-orange"></span> Functional: <strong id="stat-functional-count">0</strong>
+                                </div>
+                                <div class="breakdown-item text-green">
+                                    <span class="dot bg-green"></span> Cosmetic: <strong id="stat-cosmetic-count">0</strong>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="stat-card">
+                            <div class="stat-header">
+                                <span class="stat-title">Average Risk Score</span>
+                                <div class="stat-icon bg-violet"><i data-lucide="gauge"></i></div>
+                            </div>
+                            <div class="stat-value" id="stat-avg-risk">0%</div>
+                            <div class="stat-progress-bar">
+                                <div class="stat-progress-fill" id="stat-avg-risk-fill" style="width: 0%"></div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Charts Grid -->
+                    <div class="charts-grid">
+                        <div class="chart-card card">
+                            <h3>Severity Distribution</h3>
+                            <div class="chart-container">
+                                <canvas id="severityPieChart"></canvas>
+                            </div>
+                        </div>
+                        <div class="chart-card card">
+                            <h3>Drift Trends (Last 7 Runs)</h3>
+                            <div class="chart-container">
+                                <canvas id="historyBarChart"></canvas>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Recent History Table -->
+                    <div class="card table-card">
+                        <div class="card-header">
+                            <h3>Recent Analysis History</h3>
+                            <button class="btn btn-secondary btn-sm" onclick="clearHistory()">Clear History</button>
+                        </div>
+                        <div class="table-responsive">
+                            <table class="history-table">
+                                <thead>
+                                    <tr>
+                                        <th>Analysis Date</th>
+                                        <th>Intended Config</th>
+                                        <th>Actual/Live Config</th>
+                                        <th>Drifts</th>
+                                        <th>Risk Score</th>
+                                        <th>Actions</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="recent-history-rows">
+                                    <tr>
+                                        <td colspan="6" class="text-center text-muted py-4">No analysis runs recorded. Start by running an analysis.</td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </section>
+
+                <!-- 2. DRIFT ANALYSIS VIEW -->
+                <section id="analysis-view" class="view-section">
+                    <!-- Upload section -->
+                    <div class="upload-container">
+                        <!-- Intended Config Card -->
+                        <!-- Intended Config Card -->
+                        <div class="card upload-card">
+                            <div class="card-badge badge-intended">Intended</div>
+                            <h3>Baseline Configuration</h3>
+                            
+                            <div class="input-tabs">
+                                <button class="tab-link active" onclick="switchInputTab(this, 'intended-upload', 'intended-code')">
+                                    <i data-lucide="file-up"></i> Upload File
+                                </button>
+                                <button class="tab-link" onclick="switchInputTab(this, 'intended-code', 'intended-upload')">
+                                    <i data-lucide="code-2"></i> Paste Code
+                                </button>
+                            </div>
+                            
+                            <div id="intended-upload" class="tab-content active">
+                                <div class="drop-zone" id="drop-zone-intended">
+                                    <i data-lucide="file-up" class="drop-icon"></i>
+                                    <p class="drop-text">Drag & drop JSON/YAML or click to upload</p>
+                                    <span class="file-name-label" id="file-name-intended">No file selected</span>
+                                    <input type="file" id="file-input-intended" accept=".json,.yaml,.yml" class="file-input">
+                                </div>
+                            </div>
+                            
+                            <div id="intended-code" class="tab-content">
+                                <div class="editor-container">
+                                    <div class="editor-header">
+                                        <span>Or paste configuration code:</span>
+                                        <button class="btn btn-secondary btn-sm" onclick="clearEditor('intended')">Clear</button>
+                                    </div>
+                                    <textarea id="text-intended" placeholder='{ "server": { "port": 8080 } }' class="code-editor"></textarea>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Actual Config Card -->
+                        <div class="card upload-card">
+                            <div class="card-badge badge-actual">Actual/Live</div>
+                            <h3>Live Configuration</h3>
+                            
+                            <div class="input-tabs">
+                                <button class="tab-link active" onclick="switchInputTab(this, 'actual-upload', 'actual-code')">
+                                    <i data-lucide="file-down"></i> Upload File
+                                </button>
+                                <button class="tab-link" onclick="switchInputTab(this, 'actual-code', 'actual-upload')">
+                                    <i data-lucide="code-2"></i> Paste Code
+                                </button>
+                            </div>
+                            
+                            <div id="actual-upload" class="tab-content active">
+                                <div class="drop-zone" id="drop-zone-actual">
+                                    <i data-lucide="file-down" class="drop-icon"></i>
+                                    <p class="drop-text">Drag & drop JSON/YAML or click to upload</p>
+                                    <span class="file-name-label" id="file-name-actual">No file selected</span>
+                                    <input type="file" id="file-input-actual" accept=".json,.yaml,.yml" class="file-input">
+                                </div>
+                            </div>
+                            
+                            <div id="actual-code" class="tab-content">
+                                <div class="editor-container">
+                                    <div class="editor-header">
+                                        <span>Or paste configuration code:</span>
+                                        <button class="btn btn-secondary btn-sm" onclick="clearEditor('actual')">Clear</button>
+                                    </div>
+                                    <textarea id="text-actual" placeholder='{ "server": { "port": 9090 } }' class="code-editor"></textarea>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Format & Trigger settings bar -->
+                    <div class="analysis-controls card">
+                        <div class="control-group">
+                            <label for="format-select">Format Parser:</label>
+                            <select id="format-select" class="form-select">
+                                <option value="auto">Auto Detect</option>
+                                <option value="json">JSON Only</option>
+                                <option value="yaml">YAML Only</option>
+                                <option value="cisco">Cisco IOS (CCNA Networking)</option>
+                            </select>
+                        </div>
+                        <div class="control-actions" style="display: flex; gap: 10px; align-items: center; flex-wrap: wrap;">
+                            <button class="btn btn-secondary btn-sm" onclick="saveBaselineFromInput()" title="Save Intended Config as Production Baseline in DB">
+                                <i data-lucide="bookmark"></i> 📌 Save Active Baseline
+                            </button>
+                            <button class="btn btn-secondary btn-sm" onclick="runLiveCollectorScan()" title="Run Python File Collector against saved Baseline">
+                                <i data-lucide="radio"></i> 🤖 Live Collector Scan
+                            </button>
+                            <button class="btn btn-secondary btn-sm" onclick="runNetmikoSSHCollector()" title="Fetch live Cisco running-config directly via Netmiko SSH">
+                                <i data-lucide="terminal"></i> 🐍 Netmiko SSH Fetch
+                            </button>
+                            <button class="btn btn-secondary btn-sm" onclick="loadCiscoSampleData()">
+                                <i data-lucide="network"></i> CCNA Sample
+                            </button>
+                            <button class="btn btn-primary btn-glow" id="analyze-btn" onclick="startAnalysis()">
+                                <i data-lucide="play"></i> Analyze Drift
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- Loading State Container -->
+                    <div class="loading-overlay" id="loading-overlay">
+                        <div class="loading-card card">
+                            <div class="loading-spinner-wrapper">
+                                <div class="loading-spinner"></div>
+                            </div>
+                            <h3>Running Drift Assessment</h3>
+                            <p class="loading-sub">Analyzing configuration integrity with AI...</p>
+                            
+                            <div class="loading-steps">
+                                <div class="loading-step" id="step-read">
+                                    <span class="step-dot"></span>
+                                    <span class="step-label">Reading files</span>
+                                </div>
+                                <div class="loading-step" id="step-compare">
+                                    <span class="step-dot"></span>
+                                    <span class="step-label">Comparing configurations</span>
+                                </div>
+                                <div class="loading-step" id="step-ai">
+                                    <span class="step-dot"></span>
+                                    <span class="step-label">Running AI impact analysis</span>
+                                </div>
+                                <div class="loading-step" id="step-report">
+                                    <span class="step-dot"></span>
+                                    <span class="step-label">Generating report files</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Results Section -->
+                    <div class="results-wrapper" id="results-wrapper" style="display: none;">
+                        <div class="results-header-actions">
+                            <h2>Analysis Results</h2>
+                            <div class="export-actions">
+                                <button class="btn btn-primary" onclick="openRemediationModal()">
+                                    <i data-lucide="zap"></i> ⚡ Auto-Remediate (AI Fix)
+                                </button>
+                                <button class="btn btn-secondary" onclick="exportReport('markdown')">
+                                    <i data-lucide="file-code"></i> Export MD
+                                </button>
+                                <button class="btn btn-secondary" onclick="exportReport('pdf')">
+                                    <i data-lucide="download"></i> Export PDF
+                                </button>
+                            </div>
+                        </div>
+
+                        <!-- Score overview & stat badges -->
+                        <div class="results-summary-grid">
+                            <!-- Overall Risk Gauge Card -->
+                            <div class="card gauge-card">
+                                <h3>Overall Risk Score</h3>
+                                <div class="gauge-container">
+                                    <div class="gauge-ring" id="gauge-ring" style="background: conic-gradient(from 180deg, var(--bg-card) 0%, var(--bg-card) 100%)">
+                                        <div class="gauge-inner">
+                                            <span class="gauge-value" id="gauge-risk-value">0</span>
+                                            <span class="gauge-max">/100</span>
+                                        </div>
+                                    </div>
+                                </div>
+                                <p class="gauge-desc text-center" id="gauge-risk-desc">No Critical Risks Found</p>
+                            </div>
+
+                            <!-- Quick Stats Cards -->
+                            <div class="summary-details-grid">
+                                <div class="results-stat-card card hover-scale border-left-red">
+                                    <div class="stat-meta">
+                                        <span class="stat-count text-red" id="res-count-breaking">0</span>
+                                        <span class="stat-lbl">Breaking Drifts</span>
+                                    </div>
+                                    <p class="stat-desc-text">Requires immediate intervention. Affects port bindings, databases, credentials, or TLS encryption.</p>
+                                </div>
+                                
+                                <div class="results-stat-card card hover-scale border-left-orange">
+                                    <div class="stat-meta">
+                                        <span class="stat-count text-orange" id="res-count-functional">0</span>
+                                        <span class="stat-lbl">Functional Drifts</span>
+                                    </div>
+                                    <p class="stat-desc-text">Operational impacts. Concerns timeouts, pools, limits, retries, caching, or debug parameters.</p>
+                                </div>
+
+                                <div class="results-stat-card card hover-scale border-left-green">
+                                    <div class="stat-meta">
+                                        <span class="stat-count text-green" id="res-count-cosmetic">0</span>
+                                        <span class="stat-lbl">Cosmetic Drifts</span>
+                                    </div>
+                                    <p class="stat-desc-text">Minor non-functional parameters. Contains metadata, labels, tags, comments, or descriptions.</p>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Predictive Risk & Attack Pattern Detection Card (AI Security Vision) -->
+                        <div class="card predictive-card" id="predictive-card" style="display: none; margin-bottom: 24px; border-left: 4px solid #a855f7; background: radial-gradient(circle at top right, rgba(168,85,247,0.12), transparent 70%);">
+                            <div class="card-header" style="display: flex; justify-content: space-between; align-items: center; padding-bottom: 12px; border-bottom: 1px solid var(--border-card);">
+                                <h3><i data-lucide="zap"></i> Predictive Risk & Attack Pattern Vision ⭐</h3>
+                                <span class="badge badge-purple" id="predictive-threat-badge" style="background: #9333ea; color: #fff;">Attack Prediction: Active Pattern</span>
+                            </div>
+                            <div class="predictive-body" style="padding-top: 16px; display: flex; flex-direction: column; gap: 14px;" id="predictive-body">
+                            </div>
+                        </div>
+
+                        <!-- DevSecOps GitHub CI/CD Pipeline Shield Card -->
+                        <div class="card github-shield-card" id="github-shield-card" style="display: none; margin-bottom: 24px; border-left: 4px solid #38bdf8; background: radial-gradient(circle at top right, rgba(56,189,248,0.12), transparent 70%);">
+                            <div class="card-header" style="display: flex; justify-content: space-between; align-items: center; padding-bottom: 12px; border-bottom: 1px solid var(--border-card);">
+                                <h3><i data-lucide="git-pull-request"></i> DevSecOps GitOps Pipeline Shield & Auto-PR Bot ⭐</h3>
+                                <span class="badge badge-purple" style="background: #0284c7; color: #fff;">CI/CD Quality Gate: Active</span>
+                            </div>
+                            <div class="github-shield-body" style="padding-top: 16px; display: flex; flex-direction: column; gap: 12px;" id="github-shield-body">
+                            </div>
+                        </div>
+
+                        <!-- CCNA Network Topology & Attack Blast Radius Visualizer Card -->
+                        <div class="card network-blast-card" id="network-blast-card" style="display: none; margin-bottom: 24px; border-left: 4px solid #06b6d4; background: radial-gradient(circle at top right, rgba(6,182,212,0.12), transparent 70%);">
+                            <div class="card-header" style="display: flex; justify-content: space-between; align-items: center; padding-bottom: 12px; border-bottom: 1px solid var(--border-card);">
+                                <h3><i data-lucide="network"></i> CCNA Network Topology & Attack Blast Radius ⭐</h3>
+                                <span class="badge badge-purple" id="network-blast-badge" style="background: #0891b2; color: #fff;">Network Blast Radius: 45% Subnet Exposure</span>
+                            </div>
+                            <div class="network-blast-body" style="padding-top: 16px; display: flex; flex-direction: column; gap: 14px;" id="network-blast-body">
+                            </div>
+                        </div>
+
+                        <!-- Cybersecurity & Network Audit Threat Card -->
+                        <div class="card cyber-audit-card" id="cyber-audit-card" style="display: none; margin-bottom: 24px; border-left: 4px solid #ef4444;">
+                            <div class="card-header" style="display: flex; justify-content: space-between; align-items: center; padding-bottom: 12px; border-bottom: 1px solid var(--border-card);">
+                                <h3><i data-lucide="shield-alert"></i> Cybersecurity & Network Threat Audit</h3>
+                                <span class="badge badge-red" id="cyber-threat-badge" style="background: #dc2626; color: #fff;">Cyber Threat Level: High</span>
+                            </div>
+                            <div class="cyber-audit-body" style="padding-top: 16px; display: flex; flex-direction: column; gap: 12px;" id="cyber-audit-body">
+                            </div>
+                        </div>
+
+                        <!-- Non-Technical Executive Before vs. After Visual Comparison Card -->
+                        <div class="card exec-diff-card" id="exec-diff-card" style="display: none; margin-bottom: 24px; border-left: 4px solid #10b981; background: radial-gradient(circle at top right, rgba(16,185,129,0.12), transparent 70%);">
+                            <div class="card-header" style="display: flex; justify-content: space-between; align-items: center; padding-bottom: 12px; border-bottom: 1px solid var(--border-card);">
+                                <h3><i data-lucide="eye"></i> Executive Visual Status Comparison (Before vs. After) 👀</h3>
+                                <span class="badge badge-purple" style="background: #059669; color: #fff;">Non-Technical Executive View</span>
+                            </div>
+                            <div class="exec-diff-body" style="padding-top: 16px; display: flex; flex-direction: column; gap: 12px;" id="exec-diff-body">
+                            </div>
+                        </div>
+
+                        <!-- Interactive Visual Side-by-Side Code Diff Viewer Card -->
+                        <div class="card diff-viewer-card" id="diff-viewer-card" style="display: none; margin-bottom: 24px;">
+                            <div class="card-header" style="display: flex; justify-content: space-between; align-items: center; padding-bottom: 12px; border-bottom: 1px solid var(--border-card);">
+                                <h3><i data-lucide="git-compare"></i> Visual Side-by-Side Code Diff</h3>
+                                <span class="badge badge-purple" style="background: #7c3aed; color: #fff;">Real-Time Line Comparison</span>
+                            </div>
+                            <div class="diff-split-container" style="display: flex; gap: 16px; margin-top: 16px;">
+                                <div class="diff-pane" style="flex: 1; background: #020617; border: 1px solid var(--border-card); border-radius: var(--radius-md); overflow: hidden;">
+                                    <div class="diff-pane-header" style="background: rgba(30,41,59,0.8); padding: 8px 12px; font-size: 12px; font-weight: 600; color: #94a3b8; border-bottom: 1px solid var(--border-card);">
+                                        Baseline Configuration (Intended Target)
+                                    </div>
+                                    <pre class="diff-code-box" id="diff-code-intended" style="padding: 12px; margin: 0; font-family: 'Fira Code', monospace; font-size: 12px; color: #e2e8f0; max-height: 280px; overflow: auto; line-height: 1.6;"></pre>
+                                </div>
+                                <div class="diff-pane" style="flex: 1; background: #020617; border: 1px solid var(--border-card); border-radius: var(--radius-md); overflow: hidden;">
+                                    <div class="diff-pane-header" style="background: rgba(30,41,59,0.8); padding: 8px 12px; font-size: 12px; font-weight: 600; color: #94a3b8; border-bottom: 1px solid var(--border-card);">
+                                        Live Configuration (Actual State)
+                                    </div>
+                                    <pre class="diff-code-box" id="diff-code-actual" style="padding: 12px; margin: 0; font-family: 'Fira Code', monospace; font-size: 12px; color: #e2e8f0; max-height: 280px; overflow: auto; line-height: 1.6;"></pre>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Drifts list navigation & filter bar -->
+                        <div class="drifts-toolbar card">
+                            <div class="toolbar-item flex-grow">
+                                <div class="search-input-wrapper">
+                                    <i data-lucide="search" class="search-icon"></i>
+                                    <input type="text" id="drift-search-input" placeholder="Search config keys (e.g. server.port)..." oninput="filterDrifts()">
+                                </div>
+                            </div>
+                            <div class="toolbar-item">
+                                <label for="drift-severity-filter">Severity:</label>
+                                <select id="drift-severity-filter" class="form-select" onchange="filterDrifts()">
+                                    <option value="all">All Severities</option>
+                                    <option value="Breaking">Breaking</option>
+                                    <option value="Functional">Functional</option>
+                                    <option value="Cosmetic">Cosmetic</option>
+                                </select>
+                            </div>
+                            <div class="toolbar-item">
+                                <label for="drift-sort-select">Sort By:</label>
+                                <select id="drift-sort-select" class="form-select" onchange="filterDrifts()">
+                                    <option value="key-asc">Key Name (A-Z)</option>
+                                    <option value="key-desc">Key Name (Z-A)</option>
+                                    <option value="severity-desc">Severity (High to Low)</option>
+                                </select>
+                            </div>
+                        </div>
+
+                        <!-- Drifts dynamic list cards container -->
+                        <div class="drifts-list" id="drifts-cards-list">
+                            <!-- Injected dynamically -->
+                        </div>
+                    </div>
+                </section>
+
+                <!-- 3. REPORTS VIEW -->
+                <section id="reports-view" class="view-section">
+                    <div class="card">
+                        <div class="card-header">
+                            <h3>Saved Configuration Reports</h3>
+                            <button class="btn btn-secondary btn-sm" onclick="clearHistory()">Clear History</button>
+                        </div>
+                        <p class="card-desc px-4">Browse past drift analysis runs, reload results, and download report assets.</p>
+                        <div class="table-responsive">
+                            <table class="history-table">
+                                <thead>
+                                    <tr>
+                                        <th>Analysis Date</th>
+                                        <th>Intended Config</th>
+                                        <th>Actual/Live Config</th>
+                                        <th>Total Drifts</th>
+                                        <th>Overall Risk</th>
+                                        <th>Actions</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="reports-history-rows">
+                                    <!-- Injected dynamically -->
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </section>
+
+                <!-- 4. SETTINGS VIEW -->
+                <section id="settings-view" class="view-section">
+                    <div class="settings-grid">
+                        <!-- Gemini API configuration card -->
+                        <div class="card settings-card">
+                            <div class="card-header border-bottom">
+                                <h3><i data-lucide="key" class="title-icon"></i> Gemini API Authentication</h3>
+                            </div>
+                            <div class="settings-body">
+                                <p class="settings-intro">To enable smart AI impact analysis and recommendations, enter your Gemini API key. If no API key is provided, the application runs in <b>Offline Rule Fallback Mode</b>.</p>
+                                
+                                <div class="form-group">
+                                    <label for="settings-api-key">Gemini API Key:</label>
+                                    <div class="api-key-input-wrapper">
+                                        <input type="password" id="settings-api-key" placeholder="Enter your GEMINI_API_KEY..." class="form-input">
+                                        <button class="btn btn-secondary icon-btn" onclick="toggleApiKeyVisibility()" title="Toggle Visibility">
+                                            <i data-lucide="eye" id="api-key-eye-icon"></i>
+                                        </button>
+                                    </div>
+                                    <span class="form-hint">Your API key is saved locally in your browser storage and is never sent to third-party servers except directly to the Gemini API endpoint.</span>
+                                </div>
+                                
+                                <div class="settings-actions">
+                                    <button class="btn btn-secondary" onclick="testApiKey()">Test Key</button>
+                                    <button class="btn btn-primary" onclick="saveSettings()">Save Configuration</button>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Project Information card -->
+                        <div class="card settings-card">
+                            <div class="card-header border-bottom">
+                                <h3><i data-lucide="info" class="title-icon"></i> Project Details & Architecture</h3>
+                            </div>
+                            <div class="settings-body">
+                                <table class="project-info-table">
+                                    <tr>
+                                        <td><strong>Project Name:</strong></td>
+                                        <td>Config Drift Detector</td>
+                                    </tr>
+                                    <tr>
+                                        <td><strong>Purpose:</strong></td>
+                                        <td>Automated configuration verification with LLM risk assessments</td>
+                                    </tr>
+                                    <tr>
+                                        <td><strong>Backend Framework:</strong></td>
+                                        <td>Python / FastAPI</td>
+                                    </tr>
+                                    <tr>
+                                        <td><strong>Drift Engine:</strong></td>
+                                        <td>DeepDiff (Python)</td>
+                                    </tr>
+                                    <tr>
+                                        <td><strong>LLM Integration:</strong></td>
+                                        <td>Gemini API (gemini-1.5-flash)</td>
+                                    </tr>
+                                    <tr>
+                                        <td><strong>Document Engine:</strong></td>
+                                        <td>ReportLab PDF generator</td>
+                                    </tr>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+                </section>
+                
+            </div>
+        </main>
+    </div>
+
+    <!-- Remediation Modal -->
+    <div id="remediation-modal" class="modal-overlay" style="display: none;">
+        <div class="modal-card card">
+            <div class="modal-header">
+                <h3>⚡ AI Auto-Remediation Generator</h3>
+                <button class="modal-close-btn" onclick="closeRemediationModal()">&times;</button>
+            </div>
+            <div class="modal-body">
+                <p class="modal-subtitle">Generate automated scripts to fix detected drifts and restore your baseline configuration.</p>
+                
+                <div class="remediation-tabs">
+                    <button class="rem-tab-btn active" onclick="switchRemTab('rem-bash')">📜 Shell Script (.sh)</button>
+                    <button class="rem-tab-btn" onclick="switchRemTab('rem-ansible')">📦 Ansible Playbook</button>
+                    <button class="rem-tab-btn" onclick="switchRemTab('rem-cisco')">🌐 Cisco IOS CLI (CCNA)</button>
+                    <button class="rem-tab-btn" onclick="switchRemTab('rem-config')">🔄 Reconciled Config</button>
+                </div>
+                
+                <div id="rem-loading" class="rem-loading-spinner text-center py-4" style="display: none;">
+                    <div class="loading-spinner"></div>
+                    <p class="mt-2 text-muted">Generating AI remediation scripts...</p>
+                </div>
+
+                <div id="rem-cisco" class="rem-tab-content">
+                    <div class="code-box-header">
+                        <span>Cisco IOS Router/Switch CLI Commands (`cisco_remediate.cfg`)</span>
+                        <button class="btn btn-secondary btn-sm" onclick="copyRemScript('rem-cisco-code')"><i data-lucide="copy"></i> Copy Cisco CLI</button>
+                    </div>
+                    <pre class="code-block"><code id="rem-cisco-code">Loading Cisco CLI commands...</code></pre>
+                </div>
+
+                <div id="rem-bash" class="rem-tab-content active">
+                    <div class="code-box-header">
+                        <span>Bash Remediation Script (`fix_drift.sh`)</span>
+                        <button class="btn btn-secondary btn-sm" onclick="copyRemScript('rem-bash-code')"><i data-lucide="copy"></i> Copy Script</button>
+                    </div>
+                    <pre class="code-block"><code id="rem-bash-code">Loading script...</code></pre>
+                </div>
+
+                <div id="rem-ansible" class="rem-tab-content">
+                    <div class="code-box-header">
+                        <span>Ansible Playbook (`remediate.yml`)</span>
+                        <button class="btn btn-secondary btn-sm" onclick="copyRemScript('rem-ansible-code')"><i data-lucide="copy"></i> Copy Playbook</button>
+                    </div>
+                    <pre class="code-block"><code id="rem-ansible-code">Loading playbook...</code></pre>
+                </div>
+
+                <div id="rem-config" class="rem-tab-content">
+                    <div class="code-box-header">
+                        <span>Reconciled Target Config</span>
+                        <button class="btn btn-secondary btn-sm" onclick="copyRemScript('rem-config-code')"><i data-lucide="copy"></i> Copy Config</button>
+                    </div>
+                    <pre class="code-block"><code id="rem-config-code">Loading config...</code></pre>
+                </div>
+
+                <div class="modal-footer" style="display: flex; gap: 10px; justify-content: flex-end; padding-top: 12px; margin-top: 12px; border-top: 1px solid var(--border-card); flex-wrap: wrap;">
+                    <button class="btn btn-secondary btn-sm" onclick="dispatchSlackAlert()" style="border-color: #a855f7; color: #e9d5ff;">
+                        <i data-lucide="bell"></i> 🚨 Slack Webhook Alert
+                    </button>
+                    <button class="btn btn-primary btn-sm" onclick="executeSSHHeal()">
+                        <i data-lucide="zap"></i> ⚡ SSH Auto-Heal (Netmiko)
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Floating AI Chatbot Widget -->
+    <div id="ai-chat-widget" class="ai-chat-widget">
+        <button id="chat-toggle-btn" class="chat-toggle-btn" onclick="toggleChatDrawer()">
+            <i data-lucide="bot"></i>
+            <span>Ask Drift AI</span>
+        </button>
+
+        <div id="chat-drawer" class="chat-drawer" style="display: none;">
+            <div class="chat-header">
+                <div class="chat-title">
+                    <i data-lucide="bot"></i>
+                    <div>
+                        <h4>Ask Drift AI</h4>
+                        <span class="chat-status">DevOps & Security Assistant</span>
+                    </div>
+                </div>
+                <button class="modal-close-btn" onclick="toggleChatDrawer()">&times;</button>
+            </div>
+            <div id="chat-messages" class="chat-messages">
+                <div class="chat-msg bot">
+                    Hello! I'm <strong>Drift AI</strong>. Ask me anything about your configuration drifts, port conflicts, or security fixes!
+                </div>
+            </div>
+            <div class="chat-input-row">
+                <input type="text" id="chat-input" placeholder="Ask a question about drifts..." onkeypress="handleChatKeyPress(event)">
+                <button class="btn btn-primary btn-sm" onclick="sendChatMessage()">
+                    <i data-lucide="send"></i>
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Toast Notification -->
+    <div id="toast" class="toast">This is a notification</div>
+
+    <!-- Custom App Controller JS -->
+    <script src="/static/app.js"></script>
+</body>
+</html>

@@ -1,0 +1,10 @@
+{
+  "server": {
+    "port": 9090,
+    "ssl": {
+      "enabled": false
+    },
+    "timeout_ms": 10000,
+    "debug": true
+  }
+}

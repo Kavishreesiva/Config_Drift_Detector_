@@ -1,0 +1,6 @@
+{
+  "name": "production_cisco_baseline.cfg",
+  "content": "hostname Core-Router-01\ninterface GigabitEthernet0/1\n ip address 10.0.1.1 255.255.255.0\n no shutdown\naccess-list 100 permit tcp any host 10.0.1.1 eq 443\naccess-list 100 deny ip any any",
+  "file_format": "cisco",
+  "timestamp": "2026-08-26T15:48:53.015064+05:30"
+}

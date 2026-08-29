@@ -1,0 +1,6 @@
+database:
+  url: postgresql://admin:secret_password@db-host:5432/db_prod
+  max_connections: 50
+  pool_timeout: 30
+metadata:
+  description: "Primary database connection pool setup"
